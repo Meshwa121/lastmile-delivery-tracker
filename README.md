@@ -38,7 +38,7 @@ npm run dev                # http://localhost:3000
 |---|---|---|
 | Admin | admin@lastmile.dev | password123 |
 | Agent | agent1@lastmile.dev | password123 |
-| Customer | customer1@lastmile.dev | password123 |
+| Customer | abc@lastmile.dev | password123 |
 
 Seed also creates 2 zones (with sample pincodes), 4 rate cards (B2B/B2C × intra/inter-zone), and COD surcharges — so you can place an order immediately without doing admin config first.
 
