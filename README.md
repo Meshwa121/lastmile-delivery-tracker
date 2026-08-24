@@ -117,12 +117,78 @@ All routes are under `/api`. Auth: NextAuth session cookie (login via `/api/auth
 | GET/PATCH | `/api/agents` | ADMIN / AGENT | List agents (admin) / toggle own availability (agent) |
 
 ## Project Structure
-
 ```
-lib/            rate engine, zone detection, assignment, status machine, auth, email — all pure/testable logic lives here, kept out of API route files
-pages/api/      thin HTTP handlers that call into lib/
-pages/          customer, agent, admin dashboards (React, NextAuth session-gated)
-prisma/         schema.prisma, seed.js
+lastmile-delivery-tracker/
+├── components/
+│   └── Nav.js                    # shared role-aware navigation bar
+│
+├── lib/                          # pure business logic — no HTTP concerns
+│   ├── apiAuth.js                # requireRole() — session + role guard for API routes
+│   ├── assignment.js             # auto-assignment (nearest available agent)
+│   ├── auth.js                   # NextAuth config (credentials provider, JWT)
+│   ├── notify.js                 # email notifications (SMTP via Nodemailer)
+│   ├── orderNumber.js            # order number generator
+│   ├── orderStatus.js            # status state machine + immutable event log
+│   ├── prisma.js                 # singleton Prisma client
+│   ├── rateEngine.js             # charge calculation engine
+│   └── zoneDetection.js          # pincode → zone resolution
+│
+├── pages/
+│   ├── api/                      # thin HTTP handlers, call into lib/
+│   │   ├── admin/
+│   │   │   └── users.js          # create/list agent & admin accounts
+│   │   ├── agents/
+│   │   │   └── index.js          # list agents / toggle availability
+│   │   ├── auth/
+│   │   │   ├── [...nextauth].js  # NextAuth session handler
+│   │   │   └── register.js       # customer self-registration
+│   │   ├── orders/
+│   │   │   ├── [id]/
+│   │   │   │   ├── assign.js     # manual / auto agent assignment
+│   │   │   │   ├── reschedule.js # reschedule a FAILED order
+│   │   │   │   └── status.js     # agent-driven status update
+│   │   │   ├── [id].js           # order detail + admin status override
+│   │   │   ├── index.js          # list orders / create order
+│   │   │   └── quote.js          # price preview (no DB write)
+│   │   ├── rate-cards/
+│   │   │   ├── cod.js            # set COD surcharge
+│   │   │   └── index.js          # view / upsert rate cards
+│   │   └── zones/
+│   │       ├── [id].js           # add pincode to zone / delete zone
+│   │       └── index.js          # list zones / create zone
+│   │
+│   ├── admin/                    # admin dashboards
+│   │   ├── dashboard.js
+│   │   ├── orders.js
+│   │   ├── rate-cards.js
+│   │   └── zones.js
+│   ├── agent/
+│   │   └── dashboard.js          # agent's delivery queue + status controls
+│   ├── customer/
+│   │   ├── orders/
+│   │   │   ├── [id].js           # order tracking + reschedule
+│   │   │   └── new.js            # order form + quote → confirm flow
+│   │   └── dashboard.js          # customer's order list
+│   │
+│   ├── _app.js                   # NextAuth SessionProvider wrapper
+│   ├── index.js                  # landing page, role-based redirect
+│   ├── login.js
+│   └── register.js
+│
+├── prisma/
+│   ├── schema.prisma              # full data model
+│   └── seed.js                    # demo admin/agent/customer + sample rate cards
+│
+├── styles/
+│   └── globals.css
+│
+├── .env.example
+├── .gitignore
+├── .npmrc
+├── DESIGN.md
+├── next.config.js
+├── package.json
+└── README.md
 ```
 
 ## Design Notes
