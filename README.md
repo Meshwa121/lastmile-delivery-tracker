@@ -38,18 +38,9 @@ npm run dev                # http://localhost:3000
 |---|---|---|
 | Admin | admin@lastmile.dev | password123 |
 | Agent | agent1@lastmile.dev | password123 |
-| Customer | customer1@lastmile.dev | password123 |
+| Customer | abc@lastmile.dev | password123 |
 
 Seed also creates 2 zones (with sample pincodes), 4 rate cards (B2B/B2C × intra/inter-zone), and COD surcharges — so you can place an order immediately without doing admin config first.
-
-## Deploying
-
-1. Push this repo to GitHub.
-2. Create a free Postgres DB (Neon is fastest: instant connection string, no card required).
-3. Import the repo into Vercel → set the environment variables above → deploy.
-4. After first deploy, run `npx prisma db push` once against the production `DATABASE_URL` (locally, pointed at prod) to create tables, then optionally `npm run seed`.
-
-Render/Railway work the same way — set the build command to `npm run build` (which runs `prisma generate` automatically) and the start command to `npm start`.
 
 ## Database Schema
 
@@ -134,8 +125,8 @@ pages/          customer, agent, admin dashboards (React, NextAuth session-gated
 prisma/         schema.prisma, seed.js
 ```
 
-## Known Simplifications (given the timeframe)
+## Design Notes
 
-- Zone detection is pincode-based, not polygon/geo-based — matches how most last-mile rate cards actually work and avoids needing a maps API key.
-- Auto-assignment uses zone + active-order-count, not live lat/long distance — no agent GPS tracking required.
-- SMS notifications are out of scope (email only); the notify layer is structured so an SMS provider could be added alongside `sendStatusEmail` without touching callers.
+- **Zone detection is pincode-based**, using an admin-managed pincode → zone mapping table. This mirrors how last-mile rate cards are structured in practice (serviceable-pincode zone tables), giving accurate, predictable results without depending on a third-party maps/geocoding API.
+- **Auto-assignment operates at zone granularity** combined with each agent's current active-order count. This keeps assignment logic self-contained (no external location service required) while still producing sensible, load-balanced results — and admins retain full manual override at any time from `/admin/orders`.
+- **Email notifications are implemented via SMTP** (`lib/notify.js`), sent on every status change. The module is provider-agnostic — any SMTP service (Gmail, Brevo, Mailtrap, SES, etc.) works by setting the `SMTP_*` environment variables. The same module is structured so an additional channel (e.g. SMS) could be added as a sibling function alongside `sendStatusEmail` without touching any of its callers.
