@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum OrderType {
+  B2B
+  B2C
+}
+
+enum PaymentType {
+  PREPAID
+  COD
+}
+
+enum ZoneRateType {
+  INTRA_ZONE
+  INTER_ZONE
+}
+
+enum OrderStatus {
+  CREATED
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  RESCHEDULED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  phone        String?
+  // Agent-only fields
+  zoneId       String?
+  zone         Zone?    @relation(fields: [zoneId], references: [id])
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  ordersAsCustomer  Order[]            @relation("CustomerOrders")
+  ordersCreatedByMe Order[]            @relation("CreatedByAdmin")
+  ordersAsAgent     Order[]            @relation("AgentOrders")
+  statusChanges     OrderStatusEvent[] @relation("ActorEvents")
+}
+
+model Zone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  pincodes    ZonePincode[]
+  agents      User[]
+  pickupOrders Order[] @relation("PickupZone")
+  dropOrders   Order[] @relation("DropZone")
+}
+
+model ZonePincode {
+  id      String @id @default(cuid())
+  pincode String @unique
+  zoneId  String
+  zone    Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+}
+
+// Admin-configurable rate card: one row per (orderType, zoneType)
+model RateCard {
+  id         String       @id @default(cuid())
+  orderType  OrderType
+  zoneType   ZoneRateType
+  baseCharge Float // flat charge included regardless of weight
+  perKgRate  Float // charge per kg of chargeable weight
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([orderType, zoneType])
+}
+
+// Admin-configurable COD surcharge per order type
+model CodSurcharge {
+  id        String    @id @default(cuid())
+  orderType OrderType @unique
+  amount    Float
+  updatedAt DateTime  @updatedAt
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  orderNumber   String   @unique
+  customerId    String
+  customer      User     @relation("CustomerOrders", fields: [customerId], references: [id])
+  createdById   String? // set when admin creates order on behalf of customer
+  createdByAdmin User?   @relation("CreatedByAdmin", fields: [createdById], references: [id])
+
+  pickupAddress String
+  pickupPincode String
+  pickupZoneId  String
+  pickupZone    Zone   @relation("PickupZone", fields: [pickupZoneId], references: [id])
+
+  dropAddress   String
+  dropPincode   String
+  dropZoneId    String
+  dropZone      Zone   @relation("DropZone", fields: [dropZoneId], references: [id])
+
+  lengthCm      Float
+  breadthCm     Float
+  heightCm      Float
+  actualWeightKg Float
+  volumetricWeightKg Float
+  chargeableWeightKg Float
+
+  orderType   OrderType
+  paymentType PaymentType
+
+  baseCharge   Float
+  weightCharge Float
+  codSurcharge Float
+  totalCharge  Float
+
+  status  OrderStatus @default(CREATED)
+
+  agentId String?
+  agent   User?   @relation("AgentOrders", fields: [agentId], references: [id])
+
+  scheduledDate    DateTime? // requested delivery/reschedule date
+  rescheduleCount  Int       @default(0)
+  lastFailedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statusEvents OrderStatusEvent[]
+}
+
+// Immutable append-only tracking history
+model OrderStatusEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  actorId   String?
+  actor     User?       @relation("ActorEvents", fields: [actorId], references: [id])
+  actorRole Role?
+  note      String?
+  timestamp DateTime    @default(now())
+}
